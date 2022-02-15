@@ -7,15 +7,30 @@ import { CardList } from '../components/CardList';
 import { api } from '../services/api';
 import { Loading } from '../components/Loading';
 import { Error } from '../components/Error';
-import axios from 'axios';
+
+interface Image {
+  title: string;
+  description: string;
+  url: string;
+  ts: number;
+  id: string;
+}
+interface ImagesProps {
+  after: string;
+  data: Image[];
+}
 
 export default function Home(): JSX.Element {
 
-  const fetchImagens = async ({ pageParam = null }) => {
-    const response =  await axios.get(`/api/images?after=${pageParam}`);
+  async function getImages({ pageParam = null}): Promise<ImagesProps> {
+    const { data } = await api("/api/images", {
+      params: {
+        after: pageParam
+      }
+    })
+    return data;
+  }
 
-    return response.data;
-}
   const {
     data,
     isLoading,
@@ -23,24 +38,23 @@ export default function Home(): JSX.Element {
     isFetchingNextPage,
     fetchNextPage,
     hasNextPage,
-  } = useInfiniteQuery(
-    'images',
-    fetchImagens
-    ,
-    {
-      getNextPageParam: (lastPage, pages) =>  lastPage.after,
+  } = useInfiniteQuery('images', getImages, {
+      getNextPageParam: (lastPage) => lastPage?.after || null,
     }
   );
 
-
   const formattedData = useMemo(() => {
-    return data ? data.pages.map(page => page.data).flat() : [];
+    const arrayImagesFormatted = data?.pages.flatMap(imageData => {
+      return imageData.data.flat();
+    });
+    return arrayImagesFormatted
   }, [data]);
 
-  if (isLoading) {
+  if (isLoading && !isError) {
     return <Loading />;
   }
-  if (isError) {
+
+  if (!isLoading && isError) {
     return <Error />;
   }
 
@@ -50,9 +64,16 @@ export default function Home(): JSX.Element {
 
       <Box maxW={1120} px={20} mx="auto" my={20}>
         <CardList cards={formattedData} />
-        {hasNextPage ?? <Button bg="yellow.400" onClick={() => fetchNextPage()}>
+
+        {hasNextPage && (
+          <Button 
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            mt="4"
+          >
             {isFetchingNextPage ? 'Carregando...' : 'Carregar mais'}
-          </Button>}
+          </Button>
+        )}
       </Box>
     </>
   );
